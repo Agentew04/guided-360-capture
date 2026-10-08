@@ -191,6 +191,36 @@ html, body {
 .capture-btn:active { transform: scale(0.92); }
 .capture-btn.ready { border-color: var(--ok); }
 
+#fov-debug {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+}
+.fov-debug-box {
+  width: 100%;
+  max-width: 26rem;
+  max-height: 80vh;
+  overflow: auto;
+  background: #14161c;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  padding: 20px;
+}
+.fov-debug-box h2 { font-size: 1.1rem; margin-bottom: 12px; }
+.fov-debug-box pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
 .flash {
   position: absolute;
   inset: 0;

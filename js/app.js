@@ -7,7 +7,7 @@ import {
   requestGyro, startOrientation, stopOrientation, smoothOrientation, forgetHeading,
   captureRotation,
 } from "./orientation.js";
-import { hasVFC, onFrame, startCamera, capturePhoto, resumePreview, probeStillFov, shotFov } from "./camera.js";
+import { hasVFC, onFrame, startCamera, capturePhoto, resumePreview, probeStillFov, fovProbeReport, shotFov } from "./camera.js";
 import { updateTilt, updateSpin, hideGauges, updateHUD, updatePerf, countFrame, showShot, setPrompt } from "./hud.js";
 import { initDome, drawDome } from "./dome.js";
 import { initTargets, drawTargets } from "./targets.js";
@@ -92,9 +92,39 @@ async function begin(resume) {
   initTargets();
   updateHUD();
   updatePerf();
-  probeStillFov();
+  Promise.resolve(probeStillFov()).then(showFovDebug);
   requestAnimationFrame(renderLoop);
 }
+
+function showFovDebug() {
+  const r = fovProbeReport();
+  const lines = [
+    "iOS: " + (r.ios ? "yes" : "no"),
+    "ImageCapture: " + (r.supported ? "yes" : "no"),
+    "EXIF read: " + (r.probed ? "yes" : "no"),
+  ];
+  if (r.probed) {
+    lines.push(
+      "focal (35mm): " + r.focal35mm + " mm",
+      "image: " + r.width + "x" + r.height + " (orientation " + r.orientation + ")",
+      "",
+      "Horizontal FOV: " + r.horizontal.toFixed(2) + "\u00b0",
+      "Vertical FOV: " + r.vertical.toFixed(2) + "\u00b0",
+      "Diagonal FOV: " + r.diagonal.toFixed(2) + "\u00b0",
+    );
+  } else if (!r.ios) {
+    lines.push("", "Not iOS - FOV comes from each still's EXIF.");
+  } else if (!r.supported) {
+    lines.push("", "No ImageCapture - Safari is older than 18.4.");
+  } else {
+    lines.push("", "takePhoto gave no FocalLengthIn35mmFilm.");
+  }
+  lines.push("", navigator.userAgent);
+  $("fov-debug-text").textContent = lines.join("\n");
+  $("fov-debug").classList.remove("hidden");
+}
+
+$("fov-debug-close").addEventListener("click", () => $("fov-debug").classList.add("hidden"));
 
 function noSensor() {
   stopOrientation();
