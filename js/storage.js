@@ -41,7 +41,8 @@ export async function openStorage() {
 
 export function savePhoto(entry) {
   if (!db) return;
-  idb("readwrite", (s) => s.put(entry.blob, photoKey(entry)))
+  const meta = { rotation: entry.rotation || null, fov: entry.fov || null, target: entry.target || null };
+  idb("readwrite", (s) => s.put({ blob: entry.blob, meta }, photoKey(entry)))
     .then(() => { entry.blob = null; }) // stored: drop the RAM copy
     .catch(() => {});                   // stays in RAM; export reads it from the entry
 }
@@ -51,5 +52,14 @@ export async function clearStorage() {
 }
 
 export async function readPhoto(p) {
-  return p.blob || (db && await idb("readonly", (s) => s.get(photoKey(p))));
+  if (p.blob) return p.blob;
+  if (!db) return null;
+  const rec = await idb("readonly", (s) => s.get(photoKey(p)));
+  return rec && rec.blob ? rec.blob : rec;
+}
+
+export async function readMeta(p) {
+  if (!db) return null;
+  const rec = await idb("readonly", (s) => s.get(photoKey(p)));
+  return rec && rec.meta ? rec.meta : null;
 }

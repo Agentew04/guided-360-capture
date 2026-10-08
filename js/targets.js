@@ -1,11 +1,11 @@
 import { LEVEL_TARGETS, LEVEL_SHOTS, currentLevel, currentShot, levelStartYaw, headingLost, isDone, shotHeading } from "./session.js";
 import { DEG, gyroActive, rawRotation } from "./orientation.js";
+import { ASSUMED_HFOV } from "./fov.js";
 import { domeInk } from "./dome.js";
 
 // World-locked targets: each shot of the level drawn where it sits in the scene, from
 // the raw orientation (no smoothing, it would trail the image). The browser does not
 // report the camera's field of view, so it assumes a typical phone main camera.
-const TARGETS_HFOV = 53; // degrees across the portrait preview
 const targets = document.getElementById("targets");
 const targetsCtx = targets.getContext("2d");
 let targetsW = 0, targetsH = 0, targetsScale = 1;
@@ -61,7 +61,7 @@ export function drawTargets(holdProgress) {
   if (!gyroActive || !m || headingLost() || levelStartYaw === null || isDone()) return;
 
   const cx = targetsW / 2, cy = targetsH / 2;
-  const f = cx / Math.tan(TARGETS_HFOV * DEG / 2);
+  const f = cx / Math.tan(ASSUMED_HFOV * DEG / 2);
   for (let i = 0; i < LEVEL_SHOTS[currentLevel]; i++) {
     const p = projectTarget(m, shotHeading(i), LEVEL_TARGETS[currentLevel], f, cx, cy);
     if (!p) continue;

@@ -47,6 +47,18 @@ Everywhere else the still comes off a separate pipeline, so the preview is free 
 small. If `takePhoto()` throws, or returns something that is not 3:4, the app falls
 back to the canvas path for the rest of the run rather than producing a mixed set.
 
+## Export
+
+The `.zip` holds `360_photos/level_NN_shot_NN.jpg` plus a `metadata.json` with, for every
+shot: the target tilt/heading, the camera rotation at the shutter (yaw, pitch, roll and
+the raw 3x3 device-to-world matrix) and the horizontal/vertical/diagonal FOV.
+
+FOV comes from the still's EXIF `FocalLengthIn35mmFilm` when the device writes it
+(the `takePhoto` path, i.e. Android/desktop). iOS grabs the preview on a canvas, which
+carries no EXIF, so there the FOV falls back to the assumed ~53 degree horizontal lens
+(the same constant the target overlay uses). `metadata.json` records the per-shot source
+in `fov.source` and the run-level `fovSource`.
+
 ## Memory
 
 Each photo is saved to IndexedDB as it is taken instead of being held in memory until
@@ -63,6 +75,7 @@ js/app.js          start-up and capture flow
 js/session.js      shot layout, progress, heading reference
 js/orientation.js  gyroscope and rotation math
 js/camera.js       preview stream and photo capture
+js/fov.js          EXIF focal-length read and field-of-view math
 js/autoshot.js     automatic shutter
 js/hud.js          gauges and on-screen text
 js/dome.js         coverage dome

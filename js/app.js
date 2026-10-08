@@ -1,17 +1,18 @@
 import {
-  TOTAL_SHOTS, photos, headingLost, isDone, resetSession, restoreSession,
+  TOTAL_SHOTS, LEVEL_TARGETS, LEVEL_SHOTS, photos, headingLost, isDone, resetSession, restoreSession,
   anchorHeading, loseHeading, recalibrate, shotFailed, shotTaken,
 } from "./session.js";
 import {
   gyroActive, gotOrientation, rawPitch, rawYaw, displayPitch, displayYaw,
   requestGyro, startOrientation, stopOrientation, smoothOrientation, forgetHeading,
+  captureRotation,
 } from "./orientation.js";
-import { hasVFC, onFrame, startCamera, capturePhoto, resumePreview } from "./camera.js";
+import { hasVFC, onFrame, startCamera, capturePhoto, resumePreview, shotFov } from "./camera.js";
 import { updateTilt, updateSpin, hideGauges, updateHUD, updatePerf, countFrame, showShot, setPrompt } from "./hud.js";
 import { initDome, drawDome } from "./dome.js";
 import { initTargets, drawTargets } from "./targets.js";
 import { holdProgress, updateAutoShot } from "./autoshot.js";
-import { openStorage, savePhoto, clearStorage, readPhoto, photoKey } from "./storage.js";
+import { openStorage, savePhoto, clearStorage, readPhoto, readMeta, photoKey } from "./storage.js";
 import { buildZip } from "./zip.js";
 
 const $ = (id) => document.getElementById(id);
@@ -57,6 +58,10 @@ async function begin(resume) {
   resetSession();
   if (resume && storedCount) {
     restoreSession(storedCount);
+    for (const p of photos) {
+      const m = await readMeta(p);
+      if (m) { p.rotation = m.rotation; p.fov = m.fov; p.target = m.target; }
+    }
   } else {
     await clearStorage();
     storedCount = 0;
@@ -147,7 +152,7 @@ captureBtn.addEventListener("click", () => {
 
 async function shoot() {
   busy = true;
-  const tapYaw = rawYaw; // the capture can take a second, and the phone moves on
+  const rotation = captureRotation(); // the capture can take a second, and the phone moves on
 
   flash.classList.add("animate");
   setTimeout(() => flash.classList.remove("animate"), 180);
@@ -168,7 +173,7 @@ async function shoot() {
 
   // Size from the blob directly - no createImageBitmap (that bitmap leaked memory on iOS).
   showShot(blob.size);
-  savePhoto(shotTaken(blob, tapYaw));
+  savePhoto(shotTaken(blob, rotation, shotFov));
   updateHUD();
 }
 
@@ -178,13 +183,41 @@ exportBtn.addEventListener("click", async () => {
   exportBtn.textContent = "Packing…";
   try {
     const files = [];
+    const entries = [];
+    const fovSources = new Set();
     for (const p of photos) {
       const blob = await readPhoto(p);
       if (!blob) throw new Error(`shot ${photoKey(p) + 1} is missing from storage`);
       const l = String(p.level + 1).padStart(2, "0");
       const s = String(p.shot + 1).padStart(2, "0");
-      files.push({ name: `360_photos/level_${l}_shot_${s}.jpg`, blob });
+      const name = `360_photos/level_${l}_shot_${s}.jpg`;
+      files.push({ name, blob });
+      if (p.fov && p.fov.source) fovSources.add(p.fov.source);
+      entries.push({
+        file: name,
+        level: p.level + 1,
+        shot: p.shot + 1,
+        tilt: LEVEL_TARGETS[p.level],
+        fov: p.fov || null,
+        rotation: p.rotation || null,
+        target: p.target || null,
+      });
     }
+
+    const doc = {
+      format: "guided-360-capture/v1",
+      generated: new Date().toISOString(),
+      shotLayout: { tiltDegrees: LEVEL_TARGETS, shotsPerLevel: LEVEL_SHOTS },
+      fovSource: fovSources.size === 1 ? [...fovSources][0] : "mixed",
+      conventions: {
+        rotation: "yaw/clkwise-from-level-reference, pitch above horizon, roll about the optical axis, all degrees",
+        matrix: "row-major 3x3 device-to-world; world X east, Y north, Z up; camera axis is device -Z",
+        fov: "rectilinear degrees; horizontal across width, vertical across height, for the stored orientation",
+      },
+      photos: entries,
+    };
+    files.push({ name: "metadata.json", blob: new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }) });
+
     const content = await buildZip(files);
     const url = URL.createObjectURL(content);
     const a = document.createElement("a");

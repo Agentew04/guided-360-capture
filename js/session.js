@@ -56,13 +56,19 @@ export function shotFailed() {
   if (refShot > currentShot) refShot = currentShot; // hidden mid-capture: recalibrate now
 }
 
-export function shotTaken(blob, tapYaw) {
-  const entry = { level: currentLevel, shot: currentShot, blob };
+export function shotTaken(blob, rotation, fov) {
+  const target = {
+    pitch: LEVEL_TARGETS[currentLevel],
+    heading: LEVEL_SHOTS[currentLevel] > 1 && levelStartYaw !== null
+        ? normDeg(shotHeading(currentShot)) : null,
+  };
+  const entry = { level: currentLevel, shot: currentShot, blob, rotation: rotation || null, fov: fov || null, target };
   photos.push(entry);
 
   // The reference shot re-zeroes the heading (stored as where shot 0 sits), so drift
   // only builds up within one level (~1 min), never across the whole run. Not at the
   // poles: a vertical camera axis has no heading.
+  const tapYaw = rotation ? rotation.yaw : null;
   if (currentShot === refShot && tapYaw !== null && LEVEL_SHOTS[currentLevel] > 1) {
     levelStartYaw = normDeg(tapYaw - ROTATION_SIGN * yawStep() * currentShot);
   }

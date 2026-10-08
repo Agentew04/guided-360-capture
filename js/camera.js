@@ -1,3 +1,5 @@
+import { exifFromBlob, fovFromFocal, assumedFov } from "./fov.js";
+
 // Safari ships takePhoto but it reconfigures the capture session on every shot: the
 // preview goes black and each still allocates a sensor-sized buffer that kills the
 // tab after a handful. Canvas on iOS, real stills everywhere else.
@@ -24,6 +26,7 @@ export const hasVFC = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 export let frameSeq = 0;
 export let previewLabel = "…";
 export let shotW = 0, shotH = 0;
+export let shotFov = null;
 
 export function onFrame(listener) {
   frameListener = listener;
@@ -167,6 +170,16 @@ async function jpegSize(blob) {
   return null;
 }
 
+async function setShotFov(blob) {
+  const exif = await exifFromBlob(blob);
+  let w = shotW, h = shotH;
+  if (!w || !h) { w = 3; h = 4; }
+  const orientation = (exif && exif.orientation) || 1;
+  if (orientation >= 5) { const t = w; w = h; h = t; }
+  const base = (exif && exif.focal35mm) ? fovFromFocal(exif.focal35mm, w, h) : assumedFov(w, h);
+  shotFov = { ...base, width: w, height: h, orientation };
+}
+
 // One reused canvas. Resize only when the frame size changes (realloc leaks on iOS).
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
@@ -183,6 +196,7 @@ export async function capturePhoto() {
       if (!d || isPhotoShaped({ width: d.w, height: d.h })) {
         shotW = d ? d.w : 0;
         shotH = d ? d.h : 0;
+        await setShotFov(blob);
         return blob;
       }
       imageCapture = null; // wrong shape: the canvas crops reliably, use it instead
@@ -221,6 +235,7 @@ export async function capturePhoto() {
   shotH = h;
 
   const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", JPEG_QUALITY));
+  await setShotFov(blob);
   await recoverPreview();
   return blob;
 }
