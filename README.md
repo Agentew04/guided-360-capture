@@ -55,9 +55,11 @@ the raw 3x3 device-to-world matrix) and the horizontal/vertical/diagonal FOV.
 
 FOV comes from the still's EXIF `FocalLengthIn35mmFilm` when the device writes it
 (the `takePhoto` path, i.e. Android/desktop). iOS grabs the preview on a canvas, which
-carries no EXIF, so there the FOV falls back to the assumed ~53 degree horizontal lens
-(the same constant the target overlay uses). `metadata.json` records the per-shot source
-in `fov.source` and the run-level `fovSource`.
+carries no EXIF, so on Safari 18.4+ it takes a single throwaway `takePhoto` at start-up
+just to read the lens (`fov.source` = `exif-probe`); older Safari, or a device that
+strips EXIF, falls back to the assumed ~53 degree horizontal lens (the same constant the
+target overlay uses, `fov.source` = `assumed`). `metadata.json` records the per-shot
+source in `fov.source` and the run-level `fovSource`.
 
 ## Memory
 

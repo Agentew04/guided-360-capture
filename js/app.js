@@ -7,7 +7,7 @@ import {
   requestGyro, startOrientation, stopOrientation, smoothOrientation, forgetHeading,
   captureRotation,
 } from "./orientation.js";
-import { hasVFC, onFrame, startCamera, capturePhoto, resumePreview, shotFov } from "./camera.js";
+import { hasVFC, onFrame, startCamera, capturePhoto, resumePreview, probeStillFov, shotFov } from "./camera.js";
 import { updateTilt, updateSpin, hideGauges, updateHUD, updatePerf, countFrame, showShot, setPrompt } from "./hud.js";
 import { initDome, drawDome } from "./dome.js";
 import { initTargets, drawTargets } from "./targets.js";
@@ -92,6 +92,7 @@ async function begin(resume) {
   initTargets();
   updateHUD();
   updatePerf();
+  probeStillFov();
   requestAnimationFrame(renderLoop);
 }
 

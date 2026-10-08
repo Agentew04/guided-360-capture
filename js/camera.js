@@ -27,6 +27,8 @@ export let frameSeq = 0;
 export let previewLabel = "…";
 export let shotW = 0, shotH = 0;
 export let shotFov = null;
+let probedFov = null;
+let probePromise = null;
 
 export function onFrame(listener) {
   frameListener = listener;
@@ -171,13 +173,41 @@ async function jpegSize(blob) {
 }
 
 async function setShotFov(blob) {
+  if (probePromise) await probePromise;
   const exif = await exifFromBlob(blob);
   let w = shotW, h = shotH;
   if (!w || !h) { w = 3; h = 4; }
   const orientation = (exif && exif.orientation) || 1;
   if (orientation >= 5) { const t = w; w = h; h = t; }
-  const base = (exif && exif.focal35mm) ? fovFromFocal(exif.focal35mm, w, h) : assumedFov(w, h);
+  const f35 = (exif && exif.focal35mm) || (probedFov && probedFov.focal35mm) || null;
+  const base = f35 ? fovFromFocal(f35, w, h) : assumedFov(w, h);
+  if (f35 && !(exif && exif.focal35mm)) base.source = "exif-probe";
   shotFov = { ...base, width: w, height: h, orientation };
+}
+
+// iOS canvas grabs have no EXIF, so take a single throwaway still up front just to read
+// the lens. It reconfigures the capture session once, which the canvas path can survive;
+// the per-shot takePhoto is what kills the tab. Best effort, never blocks the run.
+export function probeStillFov() {
+  if (probePromise || !IS_IOS || !("ImageCapture" in window) || !stream) return probePromise;
+  probePromise = (async () => {
+    let probe = null;
+    try { probe = new ImageCapture(stream.getVideoTracks()[0]); } catch (_) { return; }
+    try {
+      const blob = await Promise.race([
+        probe.takePhoto(),
+        new Promise((res) => setTimeout(() => res(null), 4000)),
+      ]);
+      if (blob) {
+        const exif = await exifFromBlob(blob);
+        if (exif && exif.focal35mm) probedFov = exif;
+      }
+    } catch (_) {
+    } finally {
+      await recoverPreview();
+    }
+  })();
+  return probePromise;
 }
 
 // One reused canvas. Resize only when the frame size changes (realloc leaks on iOS).
