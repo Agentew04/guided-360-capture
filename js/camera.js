@@ -200,12 +200,7 @@ export function probeStillFov() {
       ]);
       if (blob) {
         const exif = await exifFromBlob(blob);
-        if (exif && exif.focal35mm) {
-          const d = await jpegSize(blob);
-          let w = d ? d.w : 3, h = d ? d.h : 4;
-          if ((exif.orientation || 1) >= 5) { const t = w; w = h; h = t; }
-          probedFov = { focal35mm: exif.focal35mm, orientation: exif.orientation || 1, width: w, height: h };
-        }
+        if (exif && exif.focal35mm) probedFov = exif;
       }
     } catch (_) {
     } finally {
@@ -213,23 +208,6 @@ export function probeStillFov() {
     }
   })();
   return probePromise;
-}
-
-export function fovProbeReport() {
-  const report = { ios: IS_IOS, supported: "ImageCapture" in window, probed: false };
-  if (!probedFov) return report;
-  const fov = fovFromFocal(probedFov.focal35mm, probedFov.width, probedFov.height);
-  return {
-    ...report,
-    probed: true,
-    focal35mm: probedFov.focal35mm,
-    orientation: probedFov.orientation,
-    width: probedFov.width,
-    height: probedFov.height,
-    horizontal: fov.horizontal,
-    vertical: fov.vertical,
-    diagonal: fov.diagonal,
-  };
 }
 
 // One reused canvas. Resize only when the frame size changes (realloc leaks on iOS).
