@@ -264,7 +264,7 @@ async function upload(file) {
   const lock = await keepScreenOn();
   try {
     const status = await apiUpload("/api/panoramas", body, progress);
-    if (status === 201) setMessage("Uploaded. You can close the app now: stitching takes about 3 minutes.");
+    if (status === 201) setMessage("Uploaded. You can close the app now: stitching takes about 6 minutes.");
     else if (status === 400) setMessage("That file is not a capture .zip.");
     else if (status === 413) setMessage("The file is over 300 MB.");
     else setMessage(`Upload failed (${status}).`);
