@@ -1,4 +1,5 @@
-import { exifFromBlob, fovFromFocal, assumedFov } from "./fov.js";
+import { exifFromBlob, fovFromFocal, fovFromShortEdge, assumedFov, ASSUMED_HFOV } from "./fov.js";
+import { DEG } from "./orientation.js";
 
 // Safari ships takePhoto but it reconfigures the capture session on every shot: the
 // preview goes black and each still allocates a sensor-sized buffer that kills the
@@ -231,6 +232,29 @@ async function setShotFov(blob) {
   const base = f35 ? fovFromFocal(f35, w, h) : assumedFov(w, h);
   if (f35 && !(exif && exif.focal35mm)) base.source = "exif-probe";
   shotFov = { ...base, width: w, height: h, orientation };
+}
+
+// A resumed run already knows the lens from the shots it saved.
+export function adoptFov(fov) {
+  if (fov) shotFov = fov;
+}
+
+// The overlay is drawn on the preview, so it has to project with the preview's own
+// geometry. This is the focal length in CSS px for a preview shown object-fit: cover
+// into a boxW x boxH box: cover magnifies the frame by max(box/frame), and the focal
+// scales with it. Focal comes from the still's EXIF (the iOS probe covers the gap before
+// the first shot); until either reports it we assume a typical phone lens.
+// Using the frame's real aspect also keeps it right if a driver hands back a
+// non-3:4 track, which cover then crops to the box.
+export function previewFocalPx(boxW, boxH) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return (boxW / 2) / Math.tan(ASSUMED_HFOV * DEG / 2);
+  const f35 = (shotFov && shotFov.focal35mm) || (probedFov && probedFov.focal35mm) || null;
+  const hfov = f35
+      ? fovFromFocal(f35, vw, vh).horizontal
+      : fovFromShortEdge(ASSUMED_HFOV, vw, vh).horizontal;
+  const scale = Math.max(boxW / vw, boxH / vh); // object-fit: cover, centred
+  return scale * (vw / 2) / Math.tan(hfov * DEG / 2);
 }
 
 // iOS canvas grabs have no EXIF, so take a single throwaway still up front just to read

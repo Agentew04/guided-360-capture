@@ -7,7 +7,7 @@ import {
   requestGyro, startOrientation, stopOrientation, smoothOrientation, forgetHeading,
   captureRotation,
 } from "./orientation.js";
-import { hasVFC, onFrame, startCamera, stopCamera, capturePhoto, resumePreview, probeStillFov, shotFov } from "./camera.js";
+import { hasVFC, onFrame, startCamera, stopCamera, capturePhoto, resumePreview, probeStillFov, shotFov, adoptFov } from "./camera.js";
 import { updateTilt, updateHUD, updatePerf, countFrame, showShot, setPrompt } from "./hud.js";
 import { initDome, drawDome } from "./dome.js";
 import { initTargets, drawTargets } from "./targets.js";
@@ -64,7 +64,7 @@ async function begin(resume) {
     restoreSession(storedCount);
     for (const p of photos) {
       const m = await readMeta(p);
-      if (m) { p.rotation = m.rotation; p.fov = m.fov; p.target = m.target; }
+      if (m) { p.rotation = m.rotation; p.fov = m.fov; p.target = m.target; adoptFov(m.fov); }
     }
   } else {
     await clearStorage();

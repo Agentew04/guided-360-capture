@@ -9,6 +9,18 @@ export function assumedFov(w, h) {
   return { horizontal, vertical, diagonal: null, source: "assumed", focal35mm: null };
 }
 
+// The same assumed lens, but quoted across the short edge so it can be resolved for a
+// frame of any aspect. ASSUMED_HFOV is a portrait width (the short side of a 4:3 frame),
+// so a landscape frame must widen it instead of keeping 53 across its long side.
+export function fovFromShortEdge(deg, w, h) {
+  const f = (Math.min(w, h) / 2) / Math.tan(deg * DEG / 2);
+  return {
+    horizontal: 2 * Math.atan((w / 2) / f) / DEG,
+    vertical: 2 * Math.atan((h / 2) / f) / DEG,
+    diagonal: 2 * Math.atan(Math.hypot(w, h) / 2 / f) / DEG,
+  };
+}
+
 export function fovFromFocal(f35, w, h) {
   const diag = Math.hypot(w, h) || 1;
   const half = Math.atan(FILM_DIAGONAL / (2 * f35));
