@@ -15,6 +15,7 @@ import { holdProgress, updateAutoShot } from "./autoshot.js";
 import { openStorage, savePhoto, deletePhoto, clearStorage, readPhoto, readMeta, photoKey } from "./storage.js";
 import { buildZip } from "./zip.js";
 import { buildPto } from "./pto.js";
+import { describeDevice } from "./device.js";
 import { stitchCapture } from "./library.js";
 
 const $ = (id) => document.getElementById(id);
@@ -225,6 +226,7 @@ async function packPhotos() {
   const doc = {
     format: "guided-360-capture/v1",
     generated: new Date().toISOString(),
+    device: await describeDevice(),
     shotLayout: { tiltDegrees: LEVEL_TARGETS, shotsPerLevel: LEVEL_SHOTS },
     fovSource: fovSources.size === 1 ? [...fovSources][0] : "mixed",
     conventions: {

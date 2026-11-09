@@ -53,6 +53,10 @@ shot: the target tilt/heading, the camera rotation at the shutter (yaw, pitch, r
 the raw 3x3 device-to-world matrix) and the horizontal/vertical/diagonal FOV, plus a
 `pano.pto` Hugin project.
 
+`metadata.json` also carries a run-level `device` block (raw user agent, platform, a
+best-effort model when the browser exposes one, and the screen size), so captures from
+different phones can be told apart when grouping samples later.
+
 FOV comes from the still's EXIF `FocalLengthIn35mmFilm` when the device writes it
 (the `takePhoto` path, i.e. Android/desktop). iOS grabs the preview on a canvas, which
 carries no EXIF, so on Safari 18.4+ it takes a single throwaway `takePhoto` at start-up
@@ -115,6 +119,7 @@ js/session.js      shot layout, progress, heading reference
 js/orientation.js  gyroscope and rotation math
 js/camera.js       preview stream and photo capture
 js/fov.js          EXIF focal-length read and field-of-view math
+js/device.js       device description written to metadata.json
 js/autoshot.js     automatic shutter
 js/hud.js          alignment and on-screen text
 js/dome.js         coverage dome
