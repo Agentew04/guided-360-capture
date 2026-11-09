@@ -16,15 +16,20 @@ const LONG_EDGE = 4032; // canvas path only: the photo is the whole preview fram
 // off the width. So always ask for a size - never take takePhoto()'s default.
 const STILL_SETTINGS = { imageWidth: 3264, imageHeight: 2448 };
 
+const EXPOSURE_SETTLE_MS = 800;
+const EXPOSURE_MAX_CHANGE = 0.25;
+
 const video = document.getElementById("video");
 let stream = null;
 let imageCapture = null;
 let frameLoopGen = 0;
 let frameListener = () => {};
+let exposureReady = Promise.resolve();
 
 export const hasVFC = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 export let frameSeq = 0;
 export let previewLabel = "…";
+export let exposureLabel = "auto";
 export let shotW = 0, shotH = 0;
 export let shotFov = null;
 let probedFov = null;
@@ -54,9 +59,13 @@ function isPhotoShaped(s) {
   return Math.abs(ar - SHOT_AR) < 0.02 || Math.abs(ar - 1 / SHOT_AR) < 0.02;
 }
 
-export async function startCamera() {
+export function stopCamera() {
   if (stream) stream.getTracks().forEach((t) => t.stop());
   stream = null;
+}
+
+export async function startCamera() {
+  stopCamera();
 
   imageCapture = null;
 
@@ -98,6 +107,45 @@ export async function startCamera() {
   await video.play().catch(() => {});
 
   startFrameLoop();
+  exposureReady = lockExposure(track).catch(() => {});
+}
+
+const lumaCanvas = document.createElement("canvas");
+lumaCanvas.width = lumaCanvas.height = 32;
+const lumaCtx = lumaCanvas.getContext("2d", { willReadFrequently: true });
+
+function meanLuma() {
+  lumaCtx.drawImage(video, 0, 0, 32, 32);
+  const d = lumaCtx.getImageData(0, 0, 32, 32).data;
+  let sum = 0;
+  for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return sum / 1024;
+}
+
+const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+
+async function lockExposure(track) {
+  exposureLabel = "auto";
+  const modes = !IS_IOS && track.getCapabilities ? track.getCapabilities().exposureMode : null;
+  if (!modes || !modes.includes("manual")) return;
+
+  await wait(EXPOSURE_SETTLE_MS);
+  if (!video.videoWidth || track.readyState !== "live") return;
+  const before = meanLuma();
+  const { iso } = track.getSettings();
+  try {
+    await track.applyConstraints({ advanced: [iso ? { exposureMode: "manual", iso } : { exposureMode: "manual" }] });
+  } catch (_) {
+    return;
+  }
+
+  await wait(EXPOSURE_SETTLE_MS);
+  if (Math.abs(meanLuma() - before) > before * EXPOSURE_MAX_CHANGE) {
+    await track.applyConstraints({ advanced: [{ exposureMode: "continuous" }] }).catch(() => {});
+    exposureLabel = "auto (lock changed brightness)";
+    return;
+  }
+  exposureLabel = "locked";
 }
 
 // Re-attaching srcObject cancels any pending requestVideoFrameCallback, so the loop
@@ -215,6 +263,7 @@ const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
 
 export async function capturePhoto() {
+  await exposureReady;
   if (imageCapture) {
     try {
       const blob = await imageCapture.takePhoto(STILL_SETTINGS);

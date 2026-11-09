@@ -14,8 +14,46 @@
     <p>38 photos on 5 tilt levels: 1 straight up, 10 at +45°, 16 at 0°, 10 at −45° and 1 straight down. Hold the phone upright (portrait).</p>
     <button id="start-btn" class="btn">Start capture</button>
     <button id="restart-btn" class="btn secondary hidden">Start over</button>
+    <button id="library-btn" class="btn secondary">My panoramas</button>
     <p id="error" class="error hidden"></p>
   </div>
+</section>
+
+<section id="login" class="screen hidden">
+  <form id="login-form" class="intro-box">
+    <h1>My panoramas</h1>
+    <p>Sign in to see the panoramas stitched from your captures.</p>
+    <input id="email" type="email" placeholder="Email" autocomplete="email" required>
+    <input id="password" type="password" placeholder="Password (8+ characters)" autocomplete="current-password" minlength="8" required>
+    <button type="submit" class="btn">Sign in</button>
+    <button type="button" id="register-btn" class="btn secondary">Create account</button>
+    <button type="button" id="login-back-btn" class="btn secondary">Back</button>
+    <p id="login-error" class="error hidden"></p>
+  </form>
+</section>
+
+<section id="library" class="screen hidden">
+  <header class="library-top">
+    <button id="library-back-btn" class="link">← Capture</button>
+    <h1>My panoramas</h1>
+    <button id="logout-btn" class="link">Sign out</button>
+  </header>
+  <label class="btn upload">
+    Upload capture .zip
+    <input id="zip-input" type="file" accept=".zip,application/zip" hidden>
+  </label>
+  <p id="library-message" class="library-message hidden"></p>
+  <ul id="panorama-list" class="panorama-list"></ul>
+</section>
+
+<section id="viewer" class="screen hidden">
+  <div id="viewer-stage" class="viewer-stage"></div>
+  <header class="viewer-top">
+    <button id="viewer-back-btn" class="link">← Panoramas</button>
+    <button id="download-btn" class="link hidden">Download</button>
+  </header>
+  <button id="sensor-btn" class="btn sensor-btn hidden">Enable sensors</button>
+  <p id="viewer-message" class="viewer-message hidden"></p>
 </section>
 
 <section id="capture" class="screen hidden">
@@ -33,30 +71,17 @@
 
   <canvas id="dome" class="dome" aria-hidden="true"></canvas>
 
-  <div id="tilt" class="tilt">
-    <div class="tilt-track">
-      <div class="tilt-center"></div>
-      <div id="tilt-bubble" class="tilt-bubble"></div>
-    </div>
-    <div id="angle" class="angle">0°</div>
-  </div>
-
   <footer class="hud-bottom">
-    <div id="spin" class="spin hidden">
-      <div class="spin-track">
-        <div class="spin-center"></div>
-        <div id="spin-bubble" class="spin-bubble"></div>
-      </div>
-      <div id="spin-deg" class="angle"></div>
-    </div>
     <p id="prompt" class="prompt">Tilt to target</p>
-    <button id="capture-btn" class="capture-btn" aria-label="Take photo"></button>
+    <button id="stitch-btn" class="btn hidden">Stitch panorama</button>
     <button id="export-btn" class="btn hidden">Download all 38 photos (.zip)</button>
+    <button id="undo-btn" class="btn undo-btn" disabled>Undo last photo</button>
   </footer>
 
   <div id="flash" class="flash"></div>
 </section>
 
 <script type="module" src="js/app.js"></script>
+<script type="module" src="js/library.js"></script>
 </body>
 </html>

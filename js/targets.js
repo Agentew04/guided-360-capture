@@ -1,5 +1,5 @@
 import { LEVEL_TARGETS, LEVEL_SHOTS, currentLevel, currentShot, levelStartYaw, headingLost, isDone, shotHeading } from "./session.js";
-import { DEG, gyroActive, rawRotation } from "./orientation.js";
+import { DEG, gyroActive, rawRotation, rawYaw } from "./orientation.js";
 import { ASSUMED_HFOV } from "./fov.js";
 import { domeInk } from "./dome.js";
 
@@ -9,6 +9,7 @@ import { domeInk } from "./dome.js";
 const targets = document.getElementById("targets");
 const targetsCtx = targets.getContext("2d");
 let targetsW = 0, targetsH = 0, targetsScale = 1;
+const ARROW_TIP = 48, ARROW_LEN = 20, ARROW_HALF = 11; // px, out from the aim point
 
 export function initTargets() {
   targetsScale = Math.min(window.devicePixelRatio || 1, 2); // 3x adds memory, not visible detail
@@ -20,15 +21,43 @@ export function initTargets() {
   if (targets.height !== h) targets.height = h;
 }
 
-function projectTarget(m, heading, pitch, f, cx, cy) {
+function toDevice(m, heading, pitch) {
   const cp = Math.cos(pitch * DEG);
   const w0 = cp * Math.sin(heading * DEG), w1 = cp * Math.cos(heading * DEG), w2 = Math.sin(pitch * DEG);
   // world -> device is the transpose
-  const x = m[0] * w0 + m[3] * w1 + m[6] * w2;
-  const y = m[1] * w0 + m[4] * w1 + m[7] * w2;
-  const z = m[2] * w0 + m[5] * w1 + m[8] * w2;
+  return [
+    m[0] * w0 + m[3] * w1 + m[6] * w2,
+    m[1] * w0 + m[4] * w1 + m[7] * w2,
+    m[2] * w0 + m[5] * w1 + m[8] * w2,
+  ];
+}
+
+function projectTarget(m, heading, pitch, f, cx, cy) {
+  const [x, y, z] = toDevice(m, heading, pitch);
   if (z > -0.1) return null; // behind the camera, or too far off-axis to place
   return { x: cx + f * x / -z, y: cy - f * y / -z };
+}
+
+// Points from the aim point towards the target, even one behind the camera. Hidden once
+// the target's ring is close enough to run into it.
+function targetArrow(m, heading, pitch, f, cx, cy) {
+  const [x, y, z] = toDevice(m, heading, pitch);
+  if (z <= -0.1 && f * Math.hypot(x, y) / -z < ARROW_TIP + 14) return;
+  targetsCtx.save();
+  targetsCtx.translate(cx, cy);
+  targetsCtx.rotate(Math.atan2(-y, x));
+  targetsCtx.beginPath();
+  targetsCtx.moveTo(ARROW_TIP, 0);
+  targetsCtx.lineTo(ARROW_TIP - ARROW_LEN, -ARROW_HALF);
+  targetsCtx.lineTo(ARROW_TIP - ARROW_LEN * 0.7, 0);
+  targetsCtx.lineTo(ARROW_TIP - ARROW_LEN, ARROW_HALF);
+  targetsCtx.closePath();
+  targetsCtx.fillStyle = domeInk.ok;
+  targetsCtx.fill();
+  targetsCtx.lineWidth = 1.5;
+  targetsCtx.strokeStyle = "rgba(0,0,0,0.55)";
+  targetsCtx.stroke();
+  targetsCtx.restore();
 }
 
 function targetDot(x, y, r, color) {
@@ -58,11 +87,12 @@ export function drawTargets(holdProgress) {
   targetsCtx.clearRect(0, 0, targetsW, targetsH);
 
   const m = rawRotation;
-  if (!gyroActive || !m || headingLost() || levelStartYaw === null || isDone()) return;
+  if (!gyroActive || !m || isDone()) return;
 
   const cx = targetsW / 2, cy = targetsH / 2;
   const f = cx / Math.tan(ASSUMED_HFOV * DEG / 2);
-  for (let i = 0; i < LEVEL_SHOTS[currentLevel]; i++) {
+  const known = !headingLost() && levelStartYaw !== null;
+  for (let i = 0; known && i < LEVEL_SHOTS[currentLevel]; i++) {
     const p = projectTarget(m, shotHeading(i), LEVEL_TARGETS[currentLevel], f, cx, cy);
     if (!p) continue;
     if (i === currentShot) {
@@ -74,4 +104,6 @@ export function drawTargets(holdProgress) {
   }
   targetRing(cx, cy, 6, "#fff"); // aim point
   if (holdProgress > 0) targetRing(cx, cy, 20, domeInk.ok, holdProgress);
+  // Heading lost: only the tilt is known, so the arrow keeps the heading the camera has.
+  targetArrow(m, known ? shotHeading(currentShot) : rawYaw, LEVEL_TARGETS[currentLevel], f, cx, cy);
 }

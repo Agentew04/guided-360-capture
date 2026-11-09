@@ -1,5 +1,5 @@
 export const DEG = Math.PI / 180;
-export const ROTATION_SIGN = 1; // flip to -1 if "rotate right" drives the bubble away from the centre
+export const ROTATION_SIGN = 1; // flip to -1 if the arrow points left where the prompt says "rotate right"
 const SMOOTHING = 0.18;
 
 export let gyroActive = false;

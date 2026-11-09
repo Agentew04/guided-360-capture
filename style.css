@@ -23,7 +23,7 @@ html, body {
 .screen { position: fixed; inset: 0; }
 .hidden { display: none !important; }
 
-#intro {
+#intro, #login {
   display: grid;
   place-items: center;
   padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
@@ -114,54 +114,6 @@ html, body {
   text-shadow: 0 1px 3px rgba(0,0,0,0.7);
 }
 
-.tilt {
-  position: absolute;
-  top: 50%;
-  right: 18px;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.tilt-track {
-  position: relative;
-  width: 10px;
-  height: 220px;
-  background: var(--track);
-  border-radius: 999px;
-}
-.tilt-center {
-  position: absolute;
-  top: 50%; left: -7px; right: -7px;
-  height: 2px;
-  background: rgba(255,255,255,0.5);
-  transform: translateY(-50%);
-}
-.tilt-bubble {
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 26px; height: 26px;
-  margin: -13px 0 0 -13px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: 3px solid #fff;
-  will-change: transform;
-}
-.tilt.aligned .tilt-bubble { background: var(--ok); }
-.angle {
-  min-width: 3.2rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 1.1rem;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: var(--panel);
-  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
-}
-.tilt.aligned .angle { background: rgba(52, 209, 122, 0.22); }
-
 .hud-bottom {
   position: absolute;
   left: 0; right: 0; bottom: 0;
@@ -178,18 +130,17 @@ html, body {
   text-align: center;
   text-shadow: 0 1px 4px rgba(0,0,0,0.7);
   min-height: 1.4em;
+  margin-bottom: 8px;
 }
 
-.capture-btn {
-  width: 74px; height: 74px;
-  border-radius: 50%;
-  background: #fff;
-  border: 5px solid rgba(255,255,255,0.45);
-  cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.1s ease;
+.undo-btn {
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  padding: 11px 21px;
+  font-size: 1rem;
 }
-.capture-btn:active { transform: scale(0.92); }
-.capture-btn.ready { border-color: var(--ok); }
+.undo-btn.recal { background: var(--accent); }
+.undo-btn:disabled { opacity: 0.4; border-color: var(--track); }
 
 .flash {
   position: absolute;
@@ -203,7 +154,7 @@ html, body {
   0% { opacity: 0.85; }
   100% { opacity: 0; }
 }
-/* Coverage dome, mirroring .tilt on the opposite edge. Size must match DOME_PX in dome.js. */
+/* Coverage dome. Size must match DOME_PX in dome.js. */
 .dome {
   position: absolute;
   top: 50%;
@@ -215,37 +166,113 @@ html, body {
   pointer-events: none;
 }
 
-/* Rotation gauge: the tilt bubble on its side. Same 220px track, so the bubble
-   travel (half = 97 in hud.js) matches the tilt's. */
-.spin {
+#login .intro-box { width: 100%; }
+#login input {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 14px 16px;
+  border: 1px solid var(--track);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+  font: inherit;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#login .btn[type="submit"] { width: 100%; margin-top: 0.25rem; }
+#login .error { color: #ff8080; }
+
+#library {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 24px);
+}
+.library-top {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 1rem;
 }
-.spin-track {
-  position: relative;
-  width: 220px;
-  height: 10px;
-  background: var(--track);
+.library-top h1 { font-size: 1.2rem; }
+.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.btn.upload { display: block; text-align: center; margin-bottom: 1rem; }
+.library-message { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+
+.panorama-list { list-style: none; display: grid; gap: 10px; }
+.pano-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.pano-empty { color: var(--muted); text-align: center; padding: 2rem 1rem; line-height: 1.5; }
+.pano-row { display: flex; align-items: center; gap: 12px; }
+.pano-info { flex: 1; min-width: 0; }
+.pano-title { font-weight: 600; }
+.pano-date { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+.badge {
+  font-size: 0.8rem;
+  padding: 4px 10px;
   border-radius: 999px;
+  background: var(--track);
+  color: var(--muted);
+  white-space: nowrap;
 }
-.spin-center {
-  position: absolute;
-  left: 50%; top: -7px; bottom: -7px;
-  width: 2px;
-  background: rgba(255, 255, 255, 0.5);
-  transform: translateX(-50%);
+.badge.done { background: rgba(52, 209, 122, 0.15); color: var(--ok); }
+.badge.failed { background: rgba(255, 128, 128, 0.12); color: #ff8080; }
+.btn.small { padding: 8px 14px; font-size: 0.9rem; border-radius: 10px; }
+.pano-actions { display: flex; gap: 8px; margin-top: 10px; }
+.pano-actions .btn { flex: 1; }
+
+#viewer { background: #000; }
+.viewer-stage { position: absolute; inset: 0; }
+.viewer-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
 }
-.spin-bubble {
+.viewer-stage canvas:active { cursor: grabbing; }
+.viewer-top {
   position: absolute;
-  top: 50%; left: 50%;
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: 3px solid #fff;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 8px) 16px 20px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+  pointer-events: none;
+}
+.viewer-top button { pointer-events: auto; }
+.viewer-top .link { color: var(--fg); text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.sensor-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
-  will-change: transform;
 }
-.spin.aligned .spin-bubble { background: var(--ok); }
-.spin.aligned .angle { background: rgba(52, 209, 122, 0.22); }
+.sensor-btn:active { transform: translate(-50%, -50%) scale(0.98); }
+.viewer-message {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 24px);
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 0.9rem;
+  text-align: center;
+  pointer-events: none;
+}

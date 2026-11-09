@@ -10,6 +10,7 @@ export let currentShot = 0;
 export const photos = [];
 export let levelStartYaw = null; // heading where shot 0 of the current level sits
 export let refShot = 0;          // > 0: heading lost at this shot
+let guessedStart = false;        // levelStartYaw came from anchorHeading, not from a photo
 
 export const headingLost = () => refShot > 0 && currentShot === refShot;
 export const isDone = () => currentLevel >= LEVEL_TARGETS.length;
@@ -35,10 +36,13 @@ export function restoreSession(n) {
   // The heading reference died with the old page (iOS alpha has no fixed zero across
   // loads), so the first tap after a resume recalibrates it.
   refShot = currentShot;
+  guessedStart = true;
 }
 
 export function anchorHeading(yaw) {
-  if (levelStartYaw === null) levelStartYaw = normDeg(yaw - ROTATION_SIGN * yawStep() * currentShot);
+  if (levelStartYaw !== null) return;
+  levelStartYaw = normDeg(yaw - ROTATION_SIGN * yawStep() * currentShot);
+  guessedStart = true;
 }
 
 // A capture in flight still lands, so the tap after it is the one that recalibrates.
@@ -50,6 +54,7 @@ export function loseHeading(inFlight) {
 export function recalibrate(yaw) {
   levelStartYaw = normDeg(yaw - ROTATION_SIGN * yawStep() * (currentShot - 1));
   refShot = 0;
+  guessedStart = false;
 }
 
 export function shotFailed() {
@@ -71,6 +76,7 @@ export function shotTaken(blob, rotation, fov) {
   const tapYaw = rotation ? rotation.yaw : null;
   if (currentShot === refShot && tapYaw !== null && LEVEL_SHOTS[currentLevel] > 1) {
     levelStartYaw = normDeg(tapYaw - ROTATION_SIGN * yawStep() * currentShot);
+    guessedStart = false;
   }
 
   currentShot++;
@@ -79,5 +85,15 @@ export function shotTaken(blob, rotation, fov) {
     currentLevel++;
     refShot = 0;
   }
+  return entry;
+}
+
+// Back to the last photo's slot, so it is shot again. If the heading is only a guess,
+// the slot must be recalibrated on the photo before it (or re-zeroed, at shot 0).
+export function undoShot() {
+  const entry = photos.pop();
+  currentLevel = entry.level;
+  currentShot = entry.shot;
+  if (guessedStart || refShot > currentShot) refShot = currentShot;
   return entry;
 }

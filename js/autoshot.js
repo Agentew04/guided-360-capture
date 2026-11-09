@@ -10,8 +10,7 @@ let holdSince = null;
 let holdAnchor = null; // rotation when the hold started
 export let holdProgress = 0; // 0..1
 
-// Not spinAligned: that one is waived on reference shots, and the auto shot still wants
-// them on their dot. The poles have no heading, so only their tilt counts.
+// The poles have no heading, so only their tilt counts.
 function aimedAtTarget() {
   if (!tiltAligned) return false;
   if (LEVEL_SHOTS[currentLevel] === 1) return true;

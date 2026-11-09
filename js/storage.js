@@ -47,6 +47,10 @@ export function savePhoto(entry) {
     .catch(() => {});                   // stays in RAM; export reads it from the entry
 }
 
+export function deletePhoto(p) {
+  if (db) idb("readwrite", (s) => s.delete(photoKey(p))).catch(() => {});
+}
+
 export async function clearStorage() {
   if (db) await idb("readwrite", (s) => s.clear()).catch(() => {});
 }
