@@ -41,7 +41,7 @@ function typeSize(type) {
   }
 }
 
-function parseExif(b) {
+export function parseExif(b) {
   if (b.length < 4 || b[0] !== 0xFF || b[1] !== 0xD8) return null;
   let i = 2;
   while (i + 4 <= b.length) {
@@ -101,6 +101,5 @@ function parseTiff(b, base) {
   const focal35mm = values[0xA405] || null;
   const focalMm = values[0x920A] || null;
   const orientation = values[0x0112] || 1;
-  if (!focal35mm && !focalMm) return null;
   return { focal35mm, focalMm, orientation };
 }

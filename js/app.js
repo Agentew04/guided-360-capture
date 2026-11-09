@@ -14,6 +14,7 @@ import { initTargets, drawTargets } from "./targets.js";
 import { holdProgress, updateAutoShot } from "./autoshot.js";
 import { openStorage, savePhoto, clearStorage, readPhoto, readMeta, photoKey } from "./storage.js";
 import { buildZip } from "./zip.js";
+import { buildPto } from "./pto.js";
 
 const $ = (id) => document.getElementById(id);
 const intro = $("intro"), capture = $("capture");
@@ -213,11 +214,20 @@ exportBtn.addEventListener("click", async () => {
       conventions: {
         rotation: "yaw/clkwise-from-level-reference, pitch above horizon, roll about the optical axis, all degrees",
         matrix: "row-major 3x3 device-to-world; world X east, Y north, Z up; camera axis is device -Z",
-        fov: "rectilinear degrees; horizontal across width, vertical across height, for the stored orientation",
+        fov: "rectilinear degrees; horizontal across width, vertical across height, after applying fov.orientation (width/height are the displayed size)",
       },
       photos: entries,
     };
     files.push({ name: "metadata.json", blob: new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }) });
+
+    // Ships next to 360_photos/ so the unzipped folder opens straight in Hugin.
+    // A run resumed from an old session may predate the fov size fields; the CLI
+    // reads the JPEG headers in that case, so don't fail the export over it.
+    try {
+      files.push({ name: "pano.pto", blob: new Blob([buildPto(doc)], { type: "text/plain" }) });
+    } catch (err) {
+      console.warn("Skipping pano.pto:", err.message);
+    }
 
     const content = await buildZip(files);
     const url = URL.createObjectURL(content);

@@ -49,9 +49,10 @@ back to the canvas path for the rest of the run rather than producing a mixed se
 
 ## Export
 
-The `.zip` holds `360_photos/level_NN_shot_NN.jpg` plus a `metadata.json` with, for every
+The `.zip` holds `360_photos/level_NN_shot_NN.jpg`, a `metadata.json` with, for every
 shot: the target tilt/heading, the camera rotation at the shutter (yaw, pitch, roll and
-the raw 3x3 device-to-world matrix) and the horizontal/vertical/diagonal FOV.
+the raw 3x3 device-to-world matrix) and the horizontal/vertical/diagonal FOV, plus a
+`pano.pto` Hugin project.
 
 FOV comes from the still's EXIF `FocalLengthIn35mmFilm` when the device writes it
 (the `takePhoto` path, i.e. Android/desktop). iOS grabs the preview on a canvas, which
@@ -60,6 +61,42 @@ just to read the lens (`fov.source` = `exif-probe`); older Safari, or a device t
 strips EXIF, falls back to the assumed ~53 degree horizontal lens (the same constant the
 target overlay uses, `fov.source` = `assumed`). `metadata.json` records the per-shot
 source in `fov.source` and the run-level `fovSource`.
+
+## Hugin project
+
+`pano.pto` is built from `metadata.json` so Hugin starts from the measured pose instead
+of trying to recover it: each image gets its own yaw/pitch/roll and field of view, and
+every still that shares a lens is linked into one lens.
+
+Unzip the archive and open `pano.pto`. There are no control points yet: run the
+Assistant's **Align** (or `cpfind` + **Optimize**), then **Stitch**. Because the images
+already sit in the right place, control point search starts from the real layout, and
+`cpfind --prealigned` only compares overlapping images.
+
+The mapping to Hugin's conventions (checked against libpano13's transform code) is:
+
+| Hugin | From the metadata |
+|---|---|
+| `y` yaw | measured heading; both grow clockwise, so no flip |
+| `p` pitch | measured elevation of the optical axis |
+| `r` roll | measured roll negated, plus the JPEG EXIF orientation (6 -> +90°) |
+| `v` | horizontal FOV across the stored pixel width |
+
+Roll and `v` need that care because Android stills are stored landscape and carry an
+EXIF orientation: Hugin would add the orientation itself when opening the JPEG, but a
+pto's explicit `r` wins, so the project folds it in. Absolute yaw is arbitrary in a
+panorama (only relative angles matter), so the compass headings are kept as they are.
+
+To rebuild the project from an existing zip, or to choose a different output size:
+
+```bash
+node tools/zip-to-pto.mjs 360_photos.zip
+node tools/zip-to-pto.mjs 360_photos.zip -o pano.pto --width 12000
+```
+
+It reads `metadata.json` from the archive, writes `<zip name>.pto` next to it and
+extracts the photos (existing files are left alone). `--no-extract` writes the project
+only. Node 16+ is needed for the CLI; the site itself has no build step.
 
 ## Memory
 
@@ -84,4 +121,6 @@ js/dome.js         coverage dome
 js/targets.js      dots pinned to the scene
 js/storage.js      IndexedDB
 js/zip.js          ZIP export
+js/pto.js          metadata.json -> Hugin project
+tools/zip-to-pto.mjs  zip -> .pto converter (Node)
 ```
