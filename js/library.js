@@ -1,9 +1,10 @@
-import { AuthError, api, apiUpload, clearToken, getToken, postJson, setToken } from "./api.js";
+import { AuthError, GOOGLE_CLIENT_ID, api, apiUpload, clearToken, getToken, postJson, setToken } from "./api.js";
 
 const $ = (id) => document.getElementById(id);
 const libraryBtn = $("library-btn");
 const loginForm = $("login-form"), emailInput = $("email"), passwordInput = $("password");
 const registerBtn = $("register-btn"), loginBackBtn = $("login-back-btn"), loginError = $("login-error");
+const googleBtn = $("google-btn");
 const library = $("library"), libraryBackBtn = $("library-back-btn"), logoutBtn = $("logout-btn");
 const zipInput = $("zip-input"), libraryMessage = $("library-message"), list = $("panorama-list");
 const viewerBackBtn = $("viewer-back-btn"), viewerMessage = $("viewer-message"), downloadBtn = $("download-btn");
@@ -21,12 +22,14 @@ let image = null;
 let listUrl = null;
 let listBusy = false;
 let pendingUpload = null;
+let googleReady = false;
 
 function show(id) {
   for (const screen of document.querySelectorAll(".screen")) {
     screen.classList.toggle("active", screen.id === id);
     screen.classList.toggle("hidden", screen.id !== id);
   }
+  if (id === "login") renderGoogleButton();
   if (id !== "library") clearTimeout(pollTimer);
   if (id !== "viewer") closeViewer();
 }
@@ -82,6 +85,30 @@ async function signIn() {
     return showLoginError("Could not reach the server.");
   }
   passwordInput.value = "";
+  openLibrary();
+}
+
+function renderGoogleButton() {
+  if (googleReady || !window.google?.accounts) return;
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: signInWithGoogle });
+  google.accounts.id.renderButton(googleBtn, {
+    theme: "outline",
+    size: "large",
+    width: Math.min(400, googleBtn.clientWidth),
+  });
+  googleReady = true;
+}
+
+async function signInWithGoogle({ credential }) {
+  showLoginError("");
+  try {
+    const res = await postJson("/api/auth/google", { credential });
+    if (res.status === 409) return showLoginError("This email already has an account with a password. Sign in with it.");
+    if (!res.ok) return showLoginError(`Google sign-in failed (${res.status}).`);
+    setToken((await res.json()).token);
+  } catch (_) {
+    return showLoginError("Could not reach the server.");
+  }
   openLibrary();
 }
 
@@ -259,11 +286,9 @@ async function keepScreenOn() {
 async function upload(file) {
   const progress = (fraction) => setMessage(`Uploading… ${Math.round(fraction * 100)}%. Keep this screen open.`);
   progress(0);
-  const body = new FormData();
-  body.append("file", file, file.name || "360_photos.zip");
   const lock = await keepScreenOn();
   try {
-    const status = await apiUpload("/api/panoramas", body, progress);
+    const status = await apiUpload(file, progress);
     if (status === 201) setMessage("Uploaded. You can close the app now: stitching takes about 6 minutes.");
     else if (status === 400) setMessage("That file is not a capture .zip.");
     else if (status === 413) setMessage("The file is over 300 MB.");
