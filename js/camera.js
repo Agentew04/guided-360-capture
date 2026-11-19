@@ -1,5 +1,6 @@
 import { exifFromBlob, fovFromFocal, fovFromShortEdge, assumedFov, ASSUMED_HFOV } from "./fov.js";
 import { DEG } from "./orientation.js";
+import { acutance, ANALYSIS_EDGE } from "./sharpness.js";
 
 // Safari ships takePhoto but it reconfigures the capture session on every shot: the
 // preview goes black and each still allocates a sensor-sized buffer that kills the
@@ -31,6 +32,7 @@ export const hasVFC = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 export let frameSeq = 0;
 export let previewLabel = "…";
 export let exposureLabel = "auto";
+export let wbLabel = "auto";
 export let shotW = 0, shotH = 0;
 export let shotFov = null;
 let probedFov = null;
@@ -65,28 +67,46 @@ export function stopCamera() {
   stream = null;
 }
 
-export async function startCamera() {
+export async function startCamera({ forVideo = null } = {}) {
   stopCamera();
 
   imageCapture = null;
 
   const face = { ideal: "environment" };
   let lastErr = null;
-  for (const h of shortEdgeLadder()) {
-    let candidate = null;
+  // Video probe: ask for a specific size and skip the 3:4 still check. A 16:9 track
+  // still works for the overlay, which projects with the frame's real aspect.
+  if (forVideo) {
     try {
-      candidate = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: face, height: { exact: h } }, audio: false
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: face,
+          width: { ideal: forVideo.width },
+          height: { ideal: forVideo.height },
+        },
+        audio: false,
       });
     } catch (err) {
       lastErr = err;
-      continue;
     }
-    if (isPhotoShaped(candidate.getVideoTracks()[0].getSettings())) {
-      stream = candidate;
-      break;
+  }
+  if (!stream) {
+    for (const h of shortEdgeLadder()) {
+      let candidate = null;
+      try {
+        candidate = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: face, height: { exact: h } }, audio: false
+        });
+      } catch (err) {
+        lastErr = err;
+        continue;
+      }
+      if (isPhotoShaped(candidate.getVideoTracks()[0].getSettings())) {
+        stream = candidate;
+        break;
+      }
+      candidate.getTracks().forEach((t) => t.stop());
     }
-    candidate.getTracks().forEach((t) => t.stop());
   }
   if (!stream) {
     try {
@@ -108,7 +128,7 @@ export async function startCamera() {
   await video.play().catch(() => {});
 
   startFrameLoop();
-  exposureReady = lockExposure(track).catch(() => {});
+  exposureReady = lockSettings(track).catch(() => {});
 }
 
 const lumaCanvas = document.createElement("canvas");
@@ -125,12 +145,12 @@ function meanLuma() {
 
 const wait = (ms) => new Promise((res) => setTimeout(res, ms));
 
-async function lockExposure(track) {
+async function lockExposure(track, settled) {
   exposureLabel = "auto";
   const modes = !IS_IOS && track.getCapabilities ? track.getCapabilities().exposureMode : null;
   if (!modes || !modes.includes("manual")) return;
 
-  await wait(EXPOSURE_SETTLE_MS);
+  if (!settled) await wait(EXPOSURE_SETTLE_MS);
   if (!video.videoWidth || track.readyState !== "live") return;
   const before = meanLuma();
   const { iso } = track.getSettings();
@@ -147,6 +167,49 @@ async function lockExposure(track) {
     return;
   }
   exposureLabel = "locked";
+}
+
+// Exposure and white balance both have to be frozen before the first shot: a drifting
+// auto white balance shows as colour seams once the 38 photos are stitched. Let both
+// auto controls converge once, then pin exposure and lock the balance.
+async function lockSettings(track) {
+  await wait(EXPOSURE_SETTLE_MS);
+  if (!video.videoWidth || track.readyState !== "live") return;
+  await lockExposure(track, true);
+  await lockWhiteBalance(track);
+}
+
+async function lockWhiteBalance(track) {
+  wbLabel = "auto";
+  if (IS_IOS || !track.getCapabilities) return;
+  const caps = track.getCapabilities();
+  const modes = caps.whiteBalanceMode;
+  if (!modes) return;
+
+  // single-shot runs the algorithm once and then holds: exactly what a set needs.
+  if (modes.includes("single-shot")) {
+    try {
+      await track.applyConstraints({ advanced: [{ whiteBalanceMode: "single-shot" }] });
+      wbLabel = "locked";
+      return;
+    } catch (_) {}
+  }
+
+  // Otherwise pin the temperature the camera converged to. Some devices only report it
+  // once manual is engaged, so ask for manual, read it back, then apply it explicitly.
+  if (modes.includes("manual") && caps.colorTemperature) {
+    try {
+      await track.applyConstraints({ advanced: [{ whiteBalanceMode: "manual" }] });
+      await wait(120);
+      const { colorTemperature } = track.getSettings();
+      if (colorTemperature) {
+        await track.applyConstraints({ advanced: [{ whiteBalanceMode: "manual", colorTemperature }] });
+        wbLabel = "locked";
+        return;
+      }
+      await track.applyConstraints({ advanced: [{ whiteBalanceMode: "continuous" }] }).catch(() => {});
+    } catch (_) {}
+  }
 }
 
 // Re-attaching srcObject cancels any pending requestVideoFrameCallback, so the loop
@@ -286,6 +349,53 @@ export function probeStillFov() {
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
 
+// Focus check: a downscaled readback, so the metric never touches a full still. The
+// canvas is resized only when the aspect changes, same reason as above.
+const focusCanvas = document.createElement("canvas");
+const focusCtx = focusCanvas.getContext("2d", { willReadFrequently: true });
+
+function focusOf(source, sw, sh) {
+  if (!sw || !sh) return null;
+  const scale = ANALYSIS_EDGE / Math.min(sw, sh);
+  const w = Math.max(3, Math.round(sw * scale));
+  const h = Math.max(3, Math.round(sh * scale));
+  if (focusCanvas.width !== w) focusCanvas.width = w;
+  if (focusCanvas.height !== h) focusCanvas.height = h;
+  try {
+    focusCtx.drawImage(source, 0, 0, w, h);
+    return acutance(focusCtx.getImageData(0, 0, w, h).data, w, h);
+  } catch (_) {
+    return null;
+  }
+}
+
+// The preview frame at the moment of the shutter. On Android the still comes off a
+// separate pipeline, so this is the reference the still is compared against. On iOS the
+// still is the canvas capture of this same frame: there is nothing separate to compare,
+// and an extra readback is exactly what drops WebKit's compositing layer, so skip it.
+export function previewSharpness() {
+  if (IS_IOS) return null;
+  return focusOf(video, video.videoWidth, video.videoHeight);
+}
+
+// Decode the still at a small size only. createImageBitmap is what leaked on iOS, so
+// the canvas capture path measures its own canvas instead of calling this.
+async function stillSharpness(blob) {
+  if (typeof createImageBitmap !== "function") return null;
+  let bitmap = null;
+  try {
+    bitmap = await createImageBitmap(blob, {
+      resizeWidth: Math.round(ANALYSIS_EDGE * 4 / 3),
+      resizeQuality: "low",
+    });
+    return focusOf(bitmap, bitmap.width, bitmap.height);
+  } catch (_) {
+    return null;
+  } finally {
+    bitmap?.close?.();
+  }
+}
+
 export async function capturePhoto() {
   await exposureReady;
   if (imageCapture) {
@@ -300,7 +410,7 @@ export async function capturePhoto() {
         shotW = d ? d.w : 0;
         shotH = d ? d.h : 0;
         await setShotFov(blob);
-        return blob;
+        return { blob, sharpness: await stillSharpness(blob) };
       }
       imageCapture = null; // wrong shape: the canvas crops reliably, use it instead
     } catch (_) {
@@ -337,8 +447,9 @@ export async function capturePhoto() {
   shotW = w;
   shotH = h;
 
+  const sharpness = focusOf(canvas, w, h);
   const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", JPEG_QUALITY));
   await setShotFov(blob);
   await recoverPreview();
-  return blob;
+  return { blob, sharpness };
 }

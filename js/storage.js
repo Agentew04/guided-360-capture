@@ -41,7 +41,11 @@ export async function openStorage() {
 
 export function savePhoto(entry) {
   if (!db) return;
-  const meta = { rotation: entry.rotation || null, fov: entry.fov || null, target: entry.target || null };
+  const meta = {
+    rotation: entry.rotation || null, fov: entry.fov || null,
+    target: entry.target || null, sharpness: entry.sharpness || null,
+    blurry: !!entry.blurry,
+  };
   idb("readwrite", (s) => s.put({ blob: entry.blob, meta }, photoKey(entry)))
     .then(() => { entry.blob = null; }) // stored: drop the RAM copy
     .catch(() => {});                   // stays in RAM; export reads it from the entry

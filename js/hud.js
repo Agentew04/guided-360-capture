@@ -1,6 +1,6 @@
 import { LEVEL_TARGETS, LEVEL_SHOTS, TOTAL_SHOTS, shotsBefore, currentLevel, currentShot, photos, yawStep, headingLost } from "./session.js";
 import { gyroActive } from "./orientation.js";
-import { hasVFC, frameSeq, previewLabel, exposureLabel, shotW, shotH } from "./camera.js";
+import { hasVFC, frameSeq, previewLabel, exposureLabel, wbLabel, shotW, shotH } from "./camera.js";
 import { drawDomeBase } from "./dome.js";
 
 const TOLERANCE = 5;
@@ -16,11 +16,16 @@ const undoBtn = $("undo-btn"), exportBtn = $("export-btn"), stitchBtn = $("stitc
 const perf = $("perf");
 
 export let tiltAligned = false;
-let shotLabel = "—", fpsText = "…";
+let shotLabel = "—", fpsText = "…", sharpLabel = "—";
 let uiFrames = 0, fpsAt = 0, fpsSeq = 0;
 
 export function updatePerf() {
-  perf.textContent = "FPS " + fpsText + " · Preview " + previewLabel + " · Shot " + shotLabel + " · Exposure " + exposureLabel;
+  perf.textContent = "FPS " + fpsText + " · Preview " + previewLabel + " · Shot " + shotLabel + " · Exposure " + exposureLabel + " · WB " + wbLabel + " · Sharp " + sharpLabel;
+}
+
+export function showSharpness(s) {
+  sharpLabel = s && Number.isFinite(s.score) ? s.score.toFixed(2) : "—";
+  updatePerf();
 }
 
 function fmtSize(bytes) {

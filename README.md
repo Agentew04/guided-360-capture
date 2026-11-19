@@ -46,6 +46,11 @@ Everywhere else the still comes off a separate pipeline, so the preview is free 
 small. If `takePhoto()` throws, or returns something that is not 3:4, the app falls
 back to the canvas path for the rest of the run rather than producing a mixed set.
 
+Once the stream is live the app freezes exposure and white balance (single-shot, or the
+converged colour temperature in manual mode) so all 38 shots share one look; a drifting
+auto white balance shows up as colour seams after stitching. Devices that do not expose
+those controls (iOS) keep them automatic.
+
 ## Export
 
 The `.zip` holds `360_photos/level_NN_shot_NN.jpg`, a `metadata.json` with, for every
@@ -56,6 +61,17 @@ the raw 3x3 device-to-world matrix) and the horizontal/vertical/diagonal FOV, pl
 `metadata.json` also carries a run-level `device` block (raw user agent, platform, a
 best-effort model when the browser exposes one, and the screen size), so captures from
 different phones can be told apart when grouping samples later.
+
+Every shot is also scored for focus. A still that comes out clearly softer than the
+preview at the shutter is thrown away, a red toast asks for a retake, and the numbers
+stay in `metadata.json`: `sharpness` on each photo and a `rejected` list with the
+attempts that were discarded. The metric is acutance (gradient energy over variance) on
+a 240 px downscale (`js/sharpness.js`), so it never touches a full-size frame; on
+Android the still is decoded only at that small size, and the iOS canvas path measures
+the canvas it already has. After three rejections at the same slot the shot is kept and
+flagged `blurry`, so a surface the metric cannot judge never traps the run.
+`MIN_ACUTANCE` and `RELATIVE_FLOOR` in that file are the tuning knobs if a device
+rejects too much or too little.
 
 FOV comes from the still's EXIF `FocalLengthIn35mmFilm` when the device writes it
 (the `takePhoto` path, i.e. Android/desktop). iOS grabs the preview on a canvas, which
@@ -102,6 +118,19 @@ It reads `metadata.json` from the archive, writes `<zip name>.pto` next to it an
 extracts the photos (existing files are left alone). `--no-extract` writes the project
 only. Node 16+ is needed for the CLI; the site itself has no build step.
 
+## Video probe (experimental)
+
+`tools/video-probe.html` is a spike for a video-based capture. It runs the same target
+guidance as the normal capture, but records **one clip per level** with `MediaRecorder`
+(1 s timeslice, which avoids the iOS MP4 stall) instead of taking stills, logs
+`deviceorientation` samples, and marks the moment each target was aimed. It downloads
+`video_probe.zip` with the clips and `video/metadata.json`; a server-side ffmpeg pass is
+then supposed to pick a sharp frame near each marker.
+
+It takes no stills, can use the preview stream or an optional 1080p/4K `getUserMedia`
+track (`?bitrate=` overrides the default 8 Mbps), and has no measured FOV for the video,
+so stitching still needs that server pass. Serve it from the same HTTPS origin as the app.
+
 ## Memory
 
 Each photo is saved to IndexedDB as it is taken instead of being held in memory until
@@ -120,6 +149,7 @@ js/orientation.js  gyroscope and rotation math
 js/camera.js       preview stream and photo capture
 js/fov.js          EXIF focal-length read and field-of-view math
 js/device.js       device description written to metadata.json
+js/sharpness.js    focus check (acutance) that gates capture
 js/autoshot.js     automatic shutter
 js/hud.js          alignment and on-screen text
 js/dome.js         coverage dome
@@ -128,4 +158,5 @@ js/storage.js      IndexedDB
 js/zip.js          ZIP export
 js/pto.js          metadata.json -> Hugin project
 tools/zip-to-pto.mjs  zip -> .pto converter (Node)
+tools/video-probe.html  experimental per-level video recorder
 ```

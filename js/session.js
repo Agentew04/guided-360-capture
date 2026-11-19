@@ -61,13 +61,16 @@ export function shotFailed() {
   if (refShot > currentShot) refShot = currentShot; // hidden mid-capture: recalibrate now
 }
 
-export function shotTaken(blob, rotation, fov) {
+export function shotTaken(blob, rotation, fov, sharpness, blurry) {
   const target = {
     pitch: LEVEL_TARGETS[currentLevel],
     heading: LEVEL_SHOTS[currentLevel] > 1 && levelStartYaw !== null
         ? normDeg(shotHeading(currentShot)) : null,
   };
-  const entry = { level: currentLevel, shot: currentShot, blob, rotation: rotation || null, fov: fov || null, target };
+  const entry = {
+    level: currentLevel, shot: currentShot, blob, rotation: rotation || null,
+    fov: fov || null, target, sharpness: sharpness || null, blurry: !!blurry,
+  };
   photos.push(entry);
 
   // The reference shot re-zeroes the heading (stored as where shot 0 sits), so drift

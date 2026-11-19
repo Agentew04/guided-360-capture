@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Video probe</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    #res {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--olive);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--fg);
+      font: inherit;
+    }
+    .probe-note { margin-top: 14px; font-size: 0.8rem; line-height: 1.45; color: rgba(0, 0, 0, 0.55); }
+    /* The capture footer uses the olive background, where .btn.secondary is invisible. */
+    #stop-btn { background: transparent; color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7); }
+  </style>
+</head>
+<body>
+
+<section id="intro" class="screen active">
+  <div class="intro-box">
+    <h1>Video probe</h1>
+    <p>Experimental. Runs the same target guidance as the capture, but records one video
+      clip per level instead of taking stills, and marks the moment each target was aimed.
+      At the end it downloads the clips plus a metadata JSON (markers and gyro samples).</p>
+    <label class="probe-note" for="res">Camera request</label>
+    <select id="res">
+      <option value="preview">Preview stream (3:4)</option>
+      <option value="1080">1080p (16:9)</option>
+      <option value="2160">4K (16:9)</option>
+    </select>
+    <button id="start-btn" class="btn">Start recording</button>
+    <p id="error" class="error hidden"></p>
+    <p class="probe-note">Needs HTTPS (or localhost). MediaRecorder is used with a 1 s
+      timeslice, which avoids the iOS MP4 stall. Nothing is uploaded; the zip is local.</p>
+  </div>
+</section>
+
+<section id="capture" class="screen hidden">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="targets" aria-hidden="true"></canvas>
+
+  <header class="hud-top">
+    <div class="progress"><div id="progress-fill"></div></div>
+    <div class="status">
+      <span id="level-label">Level 1 of 5</span>
+      <span id="shot-label">Shot 1 of 12</span>
+    </div>
+    <div id="perf" class="perf"></div>
+    <div id="probe-status" class="perf"></div>
+  </header>
+
+  <canvas id="dome" class="dome" aria-hidden="true"></canvas>
+
+  <footer class="hud-bottom">
+    <p id="prompt" class="prompt">Tilt to target</p>
+    <button id="stitch-btn" class="btn hidden">Stitch panorama</button>
+    <button id="export-btn" class="btn hidden">Download probe (.zip)</button>
+    <button id="undo-btn" class="btn undo-btn" disabled>Undo marker</button>
+    <button id="stop-btn" class="btn secondary">Stop &amp; download</button>
+  </footer>
+
+  <div id="flash" class="flash"></div>
+</section>
+
+<script type="module" src="./video-probe.js"></script>
+</body>
+</html>
